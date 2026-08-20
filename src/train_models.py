@@ -2,8 +2,10 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 
 from sklearn.metrics import accuracy_score, classification_report
 
@@ -58,48 +60,86 @@ print("\nTraining data:", X_train.shape)
 print("Testing data:", X_test.shape)
 
 
-# --------------------------------------------------
-# 4. CREATE LOGISTIC REGRESSION MODEL
-# --------------------------------------------------
+# ==================================================
+# 4. LOGISTIC REGRESSION
+# ==================================================
 
-model = Pipeline([
-    
-    # Scale the features
+logistic_model = Pipeline([
     ("scaler", StandardScaler()),
 
-    # Logistic Regression
     ("classifier", LogisticRegression(
         max_iter=1000,
         class_weight="balanced"
     ))
 ])
 
-
-# --------------------------------------------------
-# 5. TRAIN MODEL
-# --------------------------------------------------
-
 print("\nTraining Logistic Regression...")
 
-model.fit(X_train, y_train)
+logistic_model.fit(X_train, y_train)
 
-print("Training complete!")
+logistic_pred = logistic_model.predict(X_test)
+
+logistic_accuracy = accuracy_score(
+    y_test,
+    logistic_pred
+)
+
+print("Logistic Regression Accuracy:",
+      round(logistic_accuracy, 4))
+
+print("\nLogistic Regression Report:")
+print(classification_report(
+    y_test,
+    logistic_pred
+))
 
 
-# --------------------------------------------------
-# 6. MAKE PREDICTIONS
-# --------------------------------------------------
+# ==================================================
+# 5. RANDOM FOREST
+# ==================================================
 
-y_pred = model.predict(X_test)
+random_forest_model = RandomForestClassifier(
+    n_estimators=200,
+    class_weight="balanced",
+    random_state=42,
+    n_jobs=-1
+)
+
+print("\nTraining Random Forest...")
+
+random_forest_model.fit(X_train, y_train)
+
+random_forest_pred = random_forest_model.predict(X_test)
+
+random_forest_accuracy = accuracy_score(
+    y_test,
+    random_forest_pred
+)
+
+print("Random Forest Accuracy:",
+      round(random_forest_accuracy, 4))
+
+print("\nRandom Forest Report:")
+print(classification_report(
+    y_test,
+    random_forest_pred
+))
 
 
-# --------------------------------------------------
-# 7. EVALUATE MODEL
-# --------------------------------------------------
+# ==================================================
+# 6. COMPARE MODELS
+# ==================================================
 
-accuracy = accuracy_score(y_test, y_pred)
+print("\n" + "=" * 50)
+print("MODEL COMPARISON")
+print("=" * 50)
 
-print("\nAccuracy:", round(accuracy, 4))
+print(
+    "Logistic Regression:",
+    round(logistic_accuracy, 4)
+)
 
-print("\nClassification Report:")
-print(classification_report(y_test, y_pred))
+print(
+    "Random Forest:",
+    round(random_forest_accuracy, 4)
+)
