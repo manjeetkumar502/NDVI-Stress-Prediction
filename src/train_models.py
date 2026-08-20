@@ -1,12 +1,26 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
 
-# Load our processed ML dataset
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+
+from sklearn.metrics import accuracy_score, classification_report
+
+
+# --------------------------------------------------
+# 1. LOAD DATA
+# --------------------------------------------------
+
 df = pd.read_csv("data/processed/ml_dataset.csv")
 
 print("Dataset shape:", df.shape)
 
-# Features used by the model
+
+# --------------------------------------------------
+# 2. SELECT FEATURES
+# --------------------------------------------------
+
 features = [
     "NDVI",
     "EVI",
@@ -24,19 +38,14 @@ features = [
     "B12"
 ]
 
-# X = input features
 X = df[features]
-
-# y = target we want to predict
 y = df["stress_class"]
 
-print("\nFeatures:")
-print(X.columns.tolist())
 
-print("\nTarget:")
-print(y.value_counts())
+# --------------------------------------------------
+# 3. SPLIT DATA
+# --------------------------------------------------
 
-# Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
@@ -47,3 +56,50 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 print("\nTraining data:", X_train.shape)
 print("Testing data:", X_test.shape)
+
+
+# --------------------------------------------------
+# 4. CREATE LOGISTIC REGRESSION MODEL
+# --------------------------------------------------
+
+model = Pipeline([
+    
+    # Scale the features
+    ("scaler", StandardScaler()),
+
+    # Logistic Regression
+    ("classifier", LogisticRegression(
+        max_iter=1000,
+        class_weight="balanced"
+    ))
+])
+
+
+# --------------------------------------------------
+# 5. TRAIN MODEL
+# --------------------------------------------------
+
+print("\nTraining Logistic Regression...")
+
+model.fit(X_train, y_train)
+
+print("Training complete!")
+
+
+# --------------------------------------------------
+# 6. MAKE PREDICTIONS
+# --------------------------------------------------
+
+y_pred = model.predict(X_test)
+
+
+# --------------------------------------------------
+# 7. EVALUATE MODEL
+# --------------------------------------------------
+
+accuracy = accuracy_score(y_test, y_pred)
+
+print("\nAccuracy:", round(accuracy, 4))
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
