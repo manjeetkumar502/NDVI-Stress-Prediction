@@ -12,6 +12,7 @@ print("=" * 60)
 print("VEGETATION AI - ML DATASET CREATION")
 print("=" * 60)
 
+
 # ------------------------------------------------------------
 # 1. LOAD DATA
 # ------------------------------------------------------------
@@ -21,92 +22,143 @@ df = pd.read_csv(DATA_PATH)
 print("\nOriginal dataset:")
 print(df.shape)
 
+
 # ------------------------------------------------------------
 # 2. CONVERT DATE
 # ------------------------------------------------------------
 
-df["date"] = pd.to_datetime(df["date"], errors="coerce")
+df["date"] = pd.to_datetime(df["date"])
 
-# Sort chronologically within each field
+# Important:
+# Sort each field according to time
 df = df.sort_values(["field_id", "date"])
 
+
 # ------------------------------------------------------------
-# 3. CREATE FUTURE NDVI
+# 3. GET PREVIOUS NDVI AND EVI
+# ------------------------------------------------------------
+
+df["previous_ndvi"] = (
+    df.groupby("field_id")["NDVI"].shift(1)
+)
+
+df["previous_evi"] = (
+    df.groupby("field_id")["EVI"].shift(1)
+)
+
+
+# ------------------------------------------------------------
+# 4. CALCULATE NDVI AND EVI CHANGE
+# ------------------------------------------------------------
+
+df["ndvi_change"] = (
+    df["NDVI"] - df["previous_ndvi"]
+)
+
+df["evi_change"] = (
+    df["EVI"] - df["previous_evi"]
+)
+
+
+# ------------------------------------------------------------
+# 5. GET NEXT NDVI
 # ------------------------------------------------------------
 
 df["next_ndvi"] = (
-    df.groupby("field_id")["NDVI"]
-      .shift(-1)
+    df.groupby("field_id")["NDVI"].shift(-1)
 )
 
+
 # ------------------------------------------------------------
-# 4. CALCULATE FUTURE NDVI CHANGE
+# 6. CALCULATE FUTURE NDVI CHANGE
 # ------------------------------------------------------------
 
 df["future_ndvi_change"] = (
     df["next_ndvi"] - df["NDVI"]
 )
 
+
 # ------------------------------------------------------------
-# 5. REMOVE ROWS WITHOUT CURRENT/FUTURE NDVI
+# 7. REMOVE MISSING VALUES
 # ------------------------------------------------------------
 
 df = df.dropna(
-    subset=["NDVI", "next_ndvi"]
+    subset=[
+        "NDVI",
+        "EVI",
+        "previous_ndvi",
+        "previous_evi",
+        "ndvi_change",
+        "evi_change",
+        "next_ndvi"
+    ]
 ).copy()
 
-print("\nRows after removing missing future NDVI:")
+print("\nRows after temporal processing:")
 print(len(df))
 
+
 # ------------------------------------------------------------
-# 6. CREATE TARGET
+# 8. CREATE STRESS LABEL
 # ------------------------------------------------------------
+
+# We use future NDVI change to define vegetation condition.
+#
+# Large negative change = vegetation deterioration
+# Small change          = moderate condition
+# Positive change       = stable/improving vegetation
+#
+# Quantiles divide the observations into three groups.
+
+low_threshold = df["future_ndvi_change"].quantile(0.33)
+high_threshold = df["future_ndvi_change"].quantile(0.66)
+
 
 def classify_stress(change):
 
-    if change > -0.05:
-        return "Stable"
+    if change <= low_threshold:
+        return "High Stress"
 
-    elif change > -0.10:
+    elif change <= high_threshold:
         return "Moderate Stress"
 
     else:
-        return "High Stress"
+        return "Stable"
 
 
-df["stress_class"] = df["future_ndvi_change"].apply(
-    classify_stress
+df["stress_class"] = (
+    df["future_ndvi_change"]
+    .apply(classify_stress)
 )
 
-# ------------------------------------------------------------
-# 7. CHECK TARGET DISTRIBUTION
-# ------------------------------------------------------------
 
-print("\nTARGET DISTRIBUTION")
-print("-" * 40)
+print("\nStress thresholds:")
 
 print(
-    df["stress_class"].value_counts()
+    "High Stress threshold:",
+    round(low_threshold, 4)
 )
 
-print("\nTARGET PERCENTAGE")
-print("-" * 40)
-
 print(
-    df["stress_class"]
-    .value_counts(normalize=True)
-    .mul(100)
-    .round(2)
+    "Stable threshold:",
+    round(high_threshold, 4)
 )
 
 # ------------------------------------------------------------
-# 8. SELECT ML FEATURES
+# 9. SELECT FEATURES
 # ------------------------------------------------------------
 
 features = [
     "NDVI",
     "EVI",
     "TCG",
+
+    "previous_ndvi",
+    "previous_evi",
+
+    "ndvi_change",
+    "evi_change",
+
     "B2",
     "B3",
     "B4",
@@ -120,24 +172,18 @@ features = [
     "B12"
 ]
 
-# Keep only required columns
+
+# ------------------------------------------------------------
+# 10. CREATE FINAL ML DATASET
+# ------------------------------------------------------------
+
 ml_df = df[
     ["field_id", "date"] + features + ["stress_class"]
 ].copy()
 
-# ------------------------------------------------------------
-# 9. REMOVE MISSING FEATURE VALUES
-# ------------------------------------------------------------
-
-ml_df = ml_df.dropna(
-    subset=features
-).copy()
-
-print("\nFinal ML dataset:")
-print(ml_df.shape)
 
 # ------------------------------------------------------------
-# 10. SAVE DATASET
+# 11. SAVE DATASET
 # ------------------------------------------------------------
 
 os.makedirs(
@@ -150,11 +196,24 @@ ml_df.to_csv(
     index=False
 )
 
-print("\nSaved ML dataset to:")
-print(OUTPUT_PATH)
 
-print("\nFINAL COLUMNS")
-print(ml_df.columns.tolist())
+# ------------------------------------------------------------
+# 12. PRINT RESULTS
+# ------------------------------------------------------------
+
+print("\nFinal ML dataset:")
+print(ml_df.shape)
+
+print("\nFeatures:")
+print(features)
+
+print("\nStress distribution:")
+print(
+    ml_df["stress_class"].value_counts()
+)
+
+print("\nSaved dataset to:")
+print(OUTPUT_PATH)
 
 print("\n" + "=" * 60)
 print("ML DATASET CREATION COMPLETE")
